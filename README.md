@@ -4,6 +4,7 @@
 
    `npm i`
 
+
 ## Adding new adapter
 ### Adapter output
 Array of
@@ -88,7 +89,64 @@ url:  "",
 chains: ["Ethereum", "Polygon"], // Bridge chains. If your bridge is on 2 chains you can create adapter for 1 chain and track both deposits and withdrawals
 destinationChain:  "Polygon", // When bridge connects 2 chains, for example Ethereum<->Optimism and there is only one adapter on one chain which tracks deposits and withdrawals for both chains
 ```
+
+
+### Docker 
+
+1) Build image 
+
+`docker build -f ./docker/Dockerfile -t postgres-bridges . `
+
+2) Run container
+  
+`docker run --name postgres-bridges -d -p 5433:5432 postgres-bridges`
+
+
+3) Run testing scripts in this order 
+
+syntax: `npm run {script-name} {startTimestamp} {endTimestamp} {bridgeName}`
+
+1) backfill transactions `npm run adapter`
+2) aggregate volume `npm run aggregate`
+3) calculate daily volume  `npm run daily-volume`
+
+Example: 
+```
+npm run adapter arbitrum 1704690402 1704949602
+npm run aggregate arbitrum 1704690402 1704949602
+npm run daily-volume arbitrum 1704690402 1704949602 
+```
+Returns: 
+```
+[
+  {
+    date: '1704672000',
+    depositUSD: 20158446,
+    withdrawUSD: 4130695,
+    depositTxs: 888,
+    withdrawTxs: 71
+  },
+  {
+    date: '1704758400',
+    depositUSD: 14309807,
+    withdrawUSD: 2193118,
+    depositTxs: 237,
+    withdrawTxs: 43
+  }
+]
+```
+
+For better speed you can add custom rpc to `.env.test`
+
+Example: 
+```
+{CHAIN}_RPC=url1,url2...
+ETHEREUM_RPC=https://eth.llamarpc.com
+```
+
+
 ### Testing 
+
 #### Adapter Testing:
 ```bash
 npm run test [adapter name] [number of blocks to test on]
@@ -102,3 +160,5 @@ npm run test-txs [start ts] [end ts] [adapter name]
 Example: 
 npm run test-txs 1688476361 1688919317 synapse
 ```
+ 
+

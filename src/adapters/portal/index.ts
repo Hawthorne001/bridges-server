@@ -5,9 +5,10 @@ import { getTxsBlockRangeEtherscan, getLock } from "../../helpers/etherscan";
 import { EventData } from "../../utils/types";
 import { ethers } from "ethers";
 import { PromisePool } from "@supercharge/promise-pool";
-import { contractAddresses } from "./consts";
+import { contractAddresses, wormholeChains } from "./consts";
 import { getProvider } from "@defillama/sdk/build/general";
 import axios from "axios";
+const retry = require("async-retry");
 
 const completeTransferSigs = [
   ethers.utils.id("completeTransferAndUnwrapETH(bytes)"),
@@ -54,12 +55,19 @@ const tryParseLog = (log: ethers.providers.Log, parser: ethers.utils.Interface) 
 const portalNativeAndWrappedTransfersFromHashes = async (chain: Chain, hashes: string[], tokenBridge: string) => {
   const provider = getProvider(chain);
 
-  const { results, errors } = await PromisePool.withConcurrency(20)
+  const { results, errors } = await PromisePool.withConcurrency(10)
     .for(hashes)
     .process(async (hash) => {
       // TODO: add timeout
-      const tx = await provider.getTransaction(hash);
-      const receipt = await provider.getTransactionReceipt(hash);
+      const tx = (await retry(() => provider.getTransaction(hash), {
+        retries: 3,
+        factor: 1,
+      })) as ethers.providers.TransactionResponse;
+      const receipt = (await retry(() => provider.getTransactionReceipt(hash), {
+        retries: 3,
+        factor: 1,
+      })) as ethers.providers.TransactionReceipt;
+
       if (!tx || !tx.blockNumber || !receipt) {
         console.error(`WARNING: Unable to get transaction data on chain ${chain}, SKIPPING tx.`);
         return;
@@ -182,7 +190,7 @@ const portalNativeAndWrappedTransfersFromHashes = async (chain: Chain, hashes: s
   return aggregated;
 };
 
-// checks deposits for Solana as receipient chain, withdrawals for Solana as source chain and returns only those txs
+// checks deposits for Solana as recipient chain, withdrawals for Solana as source chain and returns only those txs
 // the 'wormhole chain id' for Solana is 1
 const processLogsForSolana = async (logs: EventData[], chain: Chain) => {
   const provider = getProvider(chain) as any;
@@ -243,6 +251,7 @@ const constructParams = (chain: string) => {
     const events = await getTxDataFromEVMEventLogs("portal", chain as Chain, fromBlock, toBlock, [
       logMessagePublishedEventParams,
     ]);
+
     let hashes = events.map((e) => e.txHash);
     // The token bridge doesn't emit events on withdrawals/inbound token transfers,
     // only able to get from subgraph, Etherscan API, etc.
@@ -275,6 +284,7 @@ interface SolanaEvent {
   token: string;
   amount: string;
   isDeposit: boolean;
+  timestamp: number;
 }
 
 const getSolanaEvents = async (fromSlot: number, toSlot: number): Promise<EventData[]> => {
@@ -282,16 +292,56 @@ const getSolanaEvents = async (fromSlot: number, toSlot: number): Promise<EventD
   if (fromSlot < 233000000) {
     return [];
   }
-  const response = await axios.get<SolanaEvent[]>(
-    `https://europe-west3-wormhole-message-db-mainnet.cloudfunctions.net/get-solana-events?fromSlot=${fromSlot}&toSlot=${toSlot}`
-  );
-  if (response.status !== 200) {
-    throw new Error(`Failed to fetch Solana events: ${response.statusText}`);
+  try {
+    const response = await axios.get<SolanaEvent[]>(
+      `https://europe-west3-wormhole-message-db-mainnet.cloudfunctions.net/get-solana-events?fromSlot=${fromSlot}&toSlot=${toSlot}`
+    );
+
+    const destChainsEvents = (
+      await Promise.all(
+        wormholeChains.map(async (chain) => {
+          if (chain === "solana") {
+            return [];
+          }
+          const result = await getSolanaEventsDestChain(fromSlot, toSlot, chain);
+          return result;
+        })
+      )
+    ).flat();
+    console.log(`[INFO] Found ${response.data.length} Solana events from slots ${fromSlot} to ${toSlot}`);
+    return response.data
+      .map((event) => ({
+        ...event,
+        amount: ethers.BigNumber.from(event.amount),
+      }))
+      .concat(...destChainsEvents);
+  } catch (e) {
+    console.error("Error fetching Solana events", e);
+    return [];
   }
-  return response.data.map((event) => ({
-    ...event,
-    amount: ethers.BigNumber.from(event.amount),
-  }));
+};
+
+const getSolanaEventsDestChain = async (fromBlock: number, toBlock: number, destChain: string) => {
+  return retry(
+    async () => {
+      const response = await axios.get<SolanaEvent[]>(
+        `https://europe-west3-wormhole-message-db-mainnet.cloudfunctions.net/get-solana-events?fromSlot=${fromBlock}&toSlot=${toBlock}&destChain=${destChain}`
+      );
+      return response.data.map((event) => ({
+        ...event,
+        amount: ethers.BigNumber.from(event.amount),
+        originChain: "solana",
+        isDeposit: true,
+        chainOverride: destChain === "avax" ? "avalanche" : destChain,
+        timestamp: event.timestamp * 1000,
+      }));
+    },
+    {
+      retries: 3,
+      factor: 1,
+      minTimeout: 1000,
+    }
+  );
 };
 
 const adapter: BridgeAdapter = {

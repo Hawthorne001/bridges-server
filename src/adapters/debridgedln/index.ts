@@ -1,5 +1,9 @@
 import { BridgeAdapter, PartialContractEventParams } from "../../helpers/bridgeAdapter.type";
 import { getTxDataFromEVMEventLogs } from "../../helpers/processTransactions";
+import { ethers } from "ethers";
+import fetch from "node-fetch";
+import { EventData } from "../../utils/types";
+const retry = require("async-retry");
 
 /**
  * deBridge is a messaging infrastructure. DLN is a cross-chain trading infrastructure
@@ -7,7 +11,7 @@ import { getTxDataFromEVMEventLogs } from "../../helpers/processTransactions";
  * For all evm chains have same contract address
  * - deposits via CreatedOrder event
  * - withdraws via FulfilledOrder event
- * 
+ *
  */
 
 const evmContracts = {
@@ -80,29 +84,73 @@ const constructParams = (chain: SupportedChains) => {
     mapTokens: { "0x0000000000000000000000000000000000000000": token },
   };
 
-  // const finalWithdrawParams = {
-  //   ...withdrawParams,
-  //   mapTokens: { "0x0000000000000000000000000000000000000000": token },
-  // };
+  const finalWithdrawParams = {
+    ...withdrawParams,
+    mapTokens: { "0x0000000000000000000000000000000000000000": token },
+  };
 
-  eventParams.push(finalDepositParams);
+  eventParams.push(finalDepositParams, finalWithdrawParams);
 
   return async (fromBlock: number, toBlock: number) =>
     getTxDataFromEVMEventLogs("debridgedln", chain, fromBlock, toBlock, eventParams);
 };
 
-// need add solana and heco
+type ApiSolanaEvent = {
+  blockNumber: number;
+  txHash: string;
+  from: string;
+  to: string;
+  token: string;
+  amount: string;
+  isDeposit: boolean;
+  giveAmountUSD: number;
+  blockTimestamp: number;
+};
+
+const solanaBlockNumberFirstUsedByDebridge = 166833820;
+
+const fetchSolanaEvents = async (fromBlock: number, toBlock: number): Promise<ApiSolanaEvent[]> => {
+  return retry(() =>
+    fetch(
+      `https://stats-api.dln.trade/api/OrderEvents/solanaDepositsAndWithdrawals?fromBlock=${fromBlock}&toBlock=${toBlock}`
+    ).then((res) => res.json())
+  );
+};
+
+const getSolanaEvents = async (fromBlock: number, toBlock: number): Promise<EventData[]> => {
+  // Performance optimization: deBridge does not have any orders from Solana prior this block
+  if (toBlock < solanaBlockNumberFirstUsedByDebridge) {
+    return [];
+  }
+
+  const events = await fetchSolanaEvents(fromBlock, toBlock);
+
+  return events.map(
+    (event) =>
+      <EventData>{
+        ...event,
+        token:
+          event.token === "11111111111111111111111111111111"
+            ? "So11111111111111111111111111111111111111112"
+            : event.token,
+        amount: ethers.BigNumber.from(Math.round(event.giveAmountUSD)),
+        isUSDVolume: true,
+        timestamp: event.blockTimestamp * 1000,
+      }
+  );
+};
 
 const adapter: BridgeAdapter = {
   ethereum: constructParams("ethereum"),
-  bsc: constructParams("bsc"), 
+  bsc: constructParams("bsc"),
   polygon: constructParams("polygon"),
   arbitrum: constructParams("arbitrum"),
   avalanche: constructParams("avax"),
   fantom: constructParams("fantom"),
   linea: constructParams("linea"),
-  optimism: constructParams("optimism"), 
+  optimism: constructParams("optimism"),
   base: constructParams("base"),
+  solana: getSolanaEvents,
 };
 
 export default adapter;

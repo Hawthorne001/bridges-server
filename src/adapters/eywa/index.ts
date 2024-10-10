@@ -9,38 +9,13 @@ enum Chains {
   fantom = "fantom",
   ethereum = "ethereum",
   optimism = "optimism",
+  base = "base",
+  gnosis = "xdai",
+  blast = "blast",
+  linea = "linea",
+  mantle = "mantle",
+  taiko = "taiko",
 }
-
-const contractAddresses = {
-  [Chains.arbitrum]: {
-    portal: "0xac8f44ceca92b2a4b30360e5bd3043850a0ffcbe",
-    synthesis: "0xf370D9Ed0141207e81321158393Eea5D8a50CC72",
-  },
-  [Chains.bsc]: {
-    portal: "0xac8f44ceca92b2a4b30360e5bd3043850a0ffcbe",
-    synthesis: "0xf370D9Ed0141207e81321158393Eea5D8a50CC72",
-  },
-  [Chains.polygon]: {
-    portal: "0xac8f44ceca92b2a4b30360e5bd3043850a0ffcbe",
-    synthesis: "0xf370D9Ed0141207e81321158393Eea5D8a50CC72",
-  },
-  [Chains.avax]: {
-    portal: "0xac8f44ceca92b2a4b30360e5bd3043850a0ffcbe",
-    synthesis: "0xf370D9Ed0141207e81321158393Eea5D8a50CC72",
-  },
-  [Chains.fantom]: {
-    portal: "0xac8f44ceca92b2a4b30360e5bd3043850a0ffcbe",
-    synthesis: "0xf370D9Ed0141207e81321158393Eea5D8a50CC72",
-  },
-  [Chains.ethereum]: {
-    portal: "0xac8f44ceca92b2a4b30360e5bd3043850a0ffcbe",
-    synthesis: "0xf370D9Ed0141207e81321158393Eea5D8a50CC72",
-  },
-  [Chains.optimism]: {
-    portal: "0xac8f44ceca92b2a4b30360e5bd3043850a0ffcbe",
-    synthesis: "0xf370D9Ed0141207e81321158393Eea5D8a50CC72",
-  },
-};
 
 const depositPortalEventParams: ContractEventParams = {
   target: "",
@@ -126,7 +101,9 @@ const mintSynthesisEventParams: ContractEventParams = {
 };
 
 const constructParams = (chain: Chains) => {
-  const { portal, synthesis } = contractAddresses[chain];
+  const portal = "0xac8f44ceca92b2a4b30360e5bd3043850a0ffcbe";
+  const synthesis = "0xf370D9Ed0141207e81321158393Eea5D8a50CC72";
+
   const eventParams: ContractEventParams[] = [
     {
       ...depositPortalEventParams,
@@ -167,6 +144,12 @@ const adapter: BridgeAdapter = {
   [Chains.ethereum]: constructParams(Chains.ethereum),
   [Chains.optimism]: constructParams(Chains.optimism),
   avalanche: constructParams(Chains.avax),
+  [Chains.base]: constructParams(Chains.base),
+  [Chains.gnosis]: constructParams(Chains.gnosis),
+  [Chains.blast]: constructParams(Chains.blast),
+  [Chains.linea]: constructParams(Chains.linea),
+  [Chains.mantle]: constructParams(Chains.mantle),
+  [Chains.taiko]: constructParams(Chains.taiko),
 };
 
 export default adapter;

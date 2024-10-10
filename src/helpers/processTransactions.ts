@@ -79,6 +79,7 @@ export const getTxDataFromEVMEventLogs = async (
         getTokenFromReceipt,
         argGetters,
       } = params;
+      const targetValue = target
       // if this is ever used, need to also overwrite fromBlock and toBlock
       const overriddenChain = chain ? chain : chainContractsAreOn;
       if (isTransfer) {
@@ -136,7 +137,8 @@ export const getTxDataFromEVMEventLogs = async (
           ).output;
           //console.log(logs)
           if (logs.length === 0) {
-            console.info(`No logs received for ${adapterName} from ${fromBlock} to ${toBlock} with topic ${topic}.`);
+            console.info(`No logs received for ${adapterName} from ${fromBlock} to ${toBlock} with topic ${topic} (${isDeposit ? 'Deposit': 'Withdrawal'}) for ${targetValue}.`);
+
           }
           break;
         } catch (e) {
@@ -189,7 +191,7 @@ export const getTxDataFromEVMEventLogs = async (
               }
               Object.entries(argKeys).map(([eventKey, argKey]) => {
                 // @ts-ignore
-                const value = argGetters?.[eventKey](args) || get(args, argKey);
+                const value = argGetters?.[eventKey]?.(args) || get(args, argKey);
                 if (typeof value !== EventKeyTypes[eventKey] && !Array.isArray(value)) {
                   throw new Error(
                     `Type of ${eventKey} retrieved using ${argKey} is ${typeof value} when it must be ${
@@ -339,7 +341,6 @@ export const getTxDataFromEVMEventLogs = async (
                 functionSignatureFilter.includeSignatures &&
                 !functionSignatureFilter.includeSignatures.includes(signature)
               ) {
-                console.info(`Tx did not have input data matching given filter for ${adapterName}, SKIPPING tx.`);
                 dataKeysToFilter.push(i);
                 return;
               }
@@ -347,7 +348,6 @@ export const getTxDataFromEVMEventLogs = async (
                 functionSignatureFilter.excludeSignatures &&
                 functionSignatureFilter.excludeSignatures.includes(signature)
               ) {
-                console.info(`Tx did not have input data matching given filter for ${adapterName}, SKIPPING tx.`);
                 dataKeysToFilter.push(i);
                 return;
               }

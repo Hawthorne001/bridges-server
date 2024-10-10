@@ -3,24 +3,24 @@ import { BridgeAdapter, ContractEventParams, PartialContractEventParams } from "
 import { constructTransferParams } from "../../helpers/eventParams";
 import { getTxDataFromEVMEventLogs } from "../../helpers/processTransactions";
 
-//Synapse Bridge Contracts on all supported chains
+// Synapse Bridge Contracts on all supported chains
 const contractAddresses = {
   arbitrum: {
       synapseBridge: "0x6F4e8eBa4D337f874Ab57478AcC2Cb5BACdc19c9",
-      synapseCCTP: "0x12715a66773BD9C54534a01aBF01d05F6B4Bd35E",
+      synapseRFQ: "0x5523D3c98809DdDB82C686E152F5C58B1B0fB59E",
   },
   aurora: {
       synapseBridge: "0xaeD5b25BE1c3163c907a471082640450F928DDFE",
   },
   avax: {
       synapseBridge: "0xC05e61d0E7a63D27546389B7aD62FdFf5A91aACE",
-      synapseCCTP: "0x12715a66773BD9C54534a01aBF01d05F6B4Bd35E"
   },
   boba: {
       synapseBridge: "0x432036208d2717394d2614d6697c46DF3Ed69540",
   },
   bsc: {
       synapseBridge: "0xd123f70AE324d34A9E76b67a27bf77593bA8749f",
+      synapseRFQ: "0x5523D3c98809DdDB82C686E152F5C58B1B0fB59E"
   },
   canto: {
       synapseBridge: "0xDde5BEC4815E1CeCf336fb973Ca578e8D83606E0",
@@ -36,7 +36,7 @@ const contractAddresses = {
   },
   ethereum: {
       synapseBridge: "0x2796317b0fF8538F253012862c06787Adfb8cEb6",
-      synapseCCTP: "0x12715a66773BD9C54534a01aBF01d05F6B4Bd35E",
+      synapseRFQ: "0x5523D3c98809DdDB82C686E152F5C58B1B0fB59E",
   },
   fantom: {
       synapseBridge: "0xAf41a65F786339e7911F4acDAD6BD49426F2Dc6b",
@@ -52,11 +52,10 @@ const contractAddresses = {
   },
   optimism: {
       synapseBridge: "0xAf41a65F786339e7911F4acDAD6BD49426F2Dc6b",
-      synapseCCTP: "0x12715a66773BD9C54534a01aBF01d05F6B4Bd35E",
+      synapseRFQ: "0x5523D3c98809DdDB82C686E152F5C58B1B0fB59E",
   },
   polygon: {
       synapseBridge: "0x8F5BBB2BB8c2Ee94639E55d5F41de9b4839C1280",
-      synapseCCTP: "0x12715a66773BD9C54534a01aBF01d05F6B4Bd35E",
   },
   metis: {
       synapseBridge: "0x06Fea8513FF03a0d3f61324da709D4cf06F42A5c",
@@ -66,12 +65,23 @@ const contractAddresses = {
   },
   base: {
     synapseBridge: "0xf07d1C752fAb503E47FEF309bf14fbDD3E867089",
-    synapseCCTP: "0x12715a66773BD9C54534a01aBF01d05F6B4Bd35E"
-}
-} as {
+    synapseRFQ: "0x5523D3c98809DdDB82C686E152F5C58B1B0fB59E"
+  },
+  blast: {
+    synapseBridge:"0x55769baf6ec39b3bf4aae948eb890ea33307ef3c",
+    synapseRFQ: "0x34F52752975222d5994C206cE08C1d5B329f24dD"
+  },
+  scroll: {
+    synapseBridge: "0x5523D3c98809DdDB82C686E152F5C58B1B0fB59E",
+  },
+  linea: {
+    synapseBridge: "0x34F52752975222d5994C206cE08C1d5B329f24dD",
+  },
+
+}  as {
     [chain: string]: {
         synapseBridge: string;
-        synapseCCTP?: string;
+        synapseRFQ?: string;
     };
   };
 
@@ -266,12 +276,16 @@ const TokenWithdrawWithdrawParams: PartialContractEventParams = {
     },
     isDeposit: false,
   };
-  //CCTP Deposit 
-  const CircleRequestSentParams: PartialContractEventParams = {
+
+
+
+
+  // RFQ Deposits
+  const RFQBridgeRequestedParams: PartialContractEventParams = {
     target: "",
-    topic: "CircleRequestSent(uint256,address,uint64,address,uint256,uint32,bytes,bytes32)",
+    topic: "BridgeRequested(bytes32,address,bytes,uint32,address,address,uint256,uint256,bool)",
     abi: [
-      "event CircleRequestSent(uint256 chainId, address indexed sender, uint64 nonce, address token, uint256 amount, uint32 requestVersion, bytes formattedRequest, bytes32 requestID)",
+      "event BridgeRequested(bytes32 indexed transactionId, address indexed sender, bytes request, uint32 destChainId, address originToken, address destToken, uint256 originAmount, uint256 destAmount, bool sendChainGas)",
     ],
     logKeys: {
       blockNumber: "blockNumber",
@@ -279,18 +293,19 @@ const TokenWithdrawWithdrawParams: PartialContractEventParams = {
       from: "address",
     },
     argKeys: {
-      amount: "amount",
-      token: "token",
-      to: "sender",
+      amount: "originAmount",
+      token: "originToken",
+      to: "sender"
     },
-    isDeposit: true,
+    isDeposit: true, 
   };
-// CCTP Withdraw
-  const CircleRequestFulfilledParams: PartialContractEventParams = {
+
+  // RFQ Withdraws
+  const RFQBridgeRelayedParams: PartialContractEventParams = {
     target: "",
-    topic: "CircleRequestFulfilled(uint32,address,address,uint256,address,uint256,bytes32)",
+    topic: "BridgeRelayed(bytes32,address,address,uint32,address,address,uint256,uint256,uint256)",
     abi: [
-      "event CircleRequestFulfilled(uint32 originDomain, address indexed recipient, address mintToken, uint256 fee, address token, uint256 amount, bytes32 requestID)",
+      "event BridgeRelayed(bytes32 indexed transactionId, address indexed relayer, address indexed to, uint32 originChainId, address originToken, address destToken, uint256 originAmount, uint256 destAmount, uint256 chainGasAmount)",
     ],
     logKeys: {
       blockNumber: "blockNumber",
@@ -298,17 +313,20 @@ const TokenWithdrawWithdrawParams: PartialContractEventParams = {
       from: "address",
     },
     argKeys: {
-      amount: "amount",
-      token: "token",
-      to: "recipient",
+      amount: "destAmount",
+      token: "destToken",
+      to: "relayer"
     },
     isDeposit: false, 
   };
 
+
+
 //Add all partial events to eventParams
 
 const constructParams = (chain:string) => {
-    const { synapseBridge = '', synapseCCTP = null } = contractAddresses[chain];
+
+    const { synapseBridge = '', synapseRFQ = null } = contractAddresses[chain];
     //Deposits:
     const finalTokenDepositDepositParams = {
         ...TokenDepositDepositParams,
@@ -334,11 +352,11 @@ const constructParams = (chain:string) => {
         ...TokenRedeemV2DepositParams,
         target: synapseBridge
     }
-    const finalCircleRequestSentParams = {
-      ...CircleRequestSentParams,
-      target: synapseCCTP || synapseBridge
+    const finalRFQBridgeRequestedParams = {
+      ...RFQBridgeRequestedParams, 
+      target: synapseRFQ || synapseBridge
     }
-    
+  
     // Withdraws
     const finalTokenWithdrawWithdrawParams = {
         ...TokenWithdrawWithdrawParams,
@@ -356,10 +374,11 @@ const constructParams = (chain:string) => {
         ...TokenMintAndSwapWithdrawParams,
         target: synapseBridge
     }
-    const finalCircleRequestFulfilledParams = {
-      ...CircleRequestFulfilledParams,
-      target: synapseCCTP || synapseBridge
+    const finalRFQBridgeRelayedParams = {
+      ...RFQBridgeRelayedParams,
+      target: synapseRFQ || synapseBridge
     }
+
 
     const eventParams = [
         finalTokenDepositDepositParams,
@@ -372,8 +391,8 @@ const constructParams = (chain:string) => {
         finalTokenWithdrawAndRemoveWithdrawParams,
         finalTokenMintWithdrawParams,
         finalTokenMintAndSwapWithdrawParams,
-        finalCircleRequestSentParams,
-        finalCircleRequestFulfilledParams,
+        finalRFQBridgeRequestedParams,
+        finalRFQBridgeRelayedParams,
     ]
 
     return async (fromBlock: number, toBlock: number) =>
@@ -396,11 +415,14 @@ const adapter: BridgeAdapter = {
   // // klaytn: constructParams("klaytn"),
   base: constructParams("base"),
   metis: constructParams("metis"),
+  blast: constructParams("blast"),
   // dfk: constructParams("dfk"),
   // boba: constructParams("boba"),
   // // canto: constructParams("canto"),
   // cronos: constructParams("cronos"),
   // dogechain: constructParams("dogechain"),
+  scroll: constructParams("scroll"),
+  linea: constructParams("linea"),
 };
 
 
@@ -408,3 +430,4 @@ const adapter: BridgeAdapter = {
 
 
 
+// npm run test synapse 1704662099 1704903299

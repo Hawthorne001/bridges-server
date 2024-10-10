@@ -1,5 +1,6 @@
 import { FunctionSignatureFilter } from "./bridgeAdapter.type";
 const axios = require("axios");
+const retry = require("async-retry");
 
 const endpoints = {
   ethereum: "https://api.etherscan.io",
@@ -9,8 +10,18 @@ const endpoints = {
   fantom: "https://api.ftmscan.com",
   arbitrum: "https://api.arbiscan.io",
   optimism: "https://api-optimistic.etherscan.io",
-  aurora: "https://explorer.mainnet.aurora.dev/api",
+  aurora: "https://explorer.mainnet.aurora.dev",
   celo: "https://api.celoscan.io",
+  "zksync era": "https://block-explorer-api.mainnet.zksync.io",
+  base: "https://api.basescan.org",
+  linea: "https://api.lineascan.build",
+  scroll: "https://api.scrollscan.com",
+  blast: "https://api.blastscan.io",
+  polygon_zkevm: "https://api-zkevm.polygonscan.com",
+  arbitrum_nova: "https://api-nova.arbiscan.io",
+  era: "https://api-era.zksync.network",
+  zklink: "https://explorer-api.zklink.io",
+  taiko: "https://api.taikoscan.io",
 } as { [chain: string]: string };
 
 const apiKeys = {
@@ -23,6 +34,14 @@ const apiKeys = {
   optimism: "HZM43U7MPE279MMQV4GY3M6HJN4QPIYE1M",
   aurora: "U3XVFVGWEITKHK74PJPRZXVS4MQAXPC2KN",
   celo: "K32MTI3Z84KVSQD752YQAFIINIMZ18BVFI",
+  base: "9SH8V4KKINTQ1WA6XSGKX34T7CS3VBMEVS",
+  linea: "BHIMJVAKNVNXWFKICD8P93M8CKBQQ8CBU9",
+  blast: "7XS7KGJ5KFK97UW8QEQRFUB5Q7EID5K6JH",
+  scroll: "CG49F8MBGMU9YQF51IU5D1I2PIWZQ2WP4F",
+  arbitrum_nova: "SZZE864TZH3MGRUUDPRPUS7NF8MAFZBDAZ",
+  polygon_zkevm: "XKFP275U27W7AI4NGUIT7VGEQ179P4XA1S",
+  era: "9HJZA6X8DEJ46WHMM2UEJ5WCXPG31C7EWI",
+  taiko: "DYUMJ7MP38G6TFY173JA2E9DJ9TXYI1RYD",
 } as { [chain: string]: string };
 
 export const getTxsBlockRangeEtherscan = async (
@@ -35,35 +54,46 @@ export const getTxsBlockRangeEtherscan = async (
   const endpoint = endpoints[chain];
   const apiKey = apiKeys[chain];
   let res;
-  if (chain === "aurora") {
+  if (!endpoint) {
+    console.error(`WARNING: No Etherscan endpoint found for chain ${chain}.`);
+    return [];
+  }
+  if (!apiKey) {
     res = (
-      await axios.get(
-        `${endpoint}?module=account&action=txlist&address=${address}&startblock=${startBlock}&endblock=${endBlock}`
+      await retry(
+        () =>
+          axios.get(
+            `${endpoint}/api?module=account&action=txlist&address=${address}&startblock=${startBlock}&endblock=${endBlock}`
+          ),
+        { factor: 1, retries: 3 }
       )
     ).data as any;
   } else {
     res = (
-      await axios.get(
-        `${endpoint}/api?module=account&action=txlist&address=${address}&startblock=${startBlock}&endblock=${endBlock}&apikey=${apiKey}`
+      await retry(
+        () =>
+          axios.get(
+            `${endpoint}/api?module=account&action=txlist&address=${address}&startblock=${startBlock}&endblock=${endBlock}&apikey=${apiKey}`
+          ),
+        { factor: 1, retries: 3 }
       )
     ).data as any;
   }
   if (res.message === "OK") {
     const filteredResults = res.result.filter((tx: any) => {
       if (functionSignatureFilter) {
-        const signature = tx.input.slice(0, 8);
+        const signature = tx.input.slice(0, 10); // 0x + 4 bytes of method id @todo bug to be reported
+        // alternatively, we can use the method signature like const signature = tx.methodId;
         if (
           functionSignatureFilter.includeSignatures &&
           !functionSignatureFilter.includeSignatures.includes(signature)
         ) {
-          console.info(`Tx did not have input data matching given filter for address ${address}, SKIPPING tx.`);
           return false;
         }
         if (
           functionSignatureFilter.excludeSignatures &&
           functionSignatureFilter.excludeSignatures.includes(signature)
         ) {
-          console.info(`Tx did not have input data matching given filter for address ${address}, SKIPPING tx.`);
           return false;
         }
       }

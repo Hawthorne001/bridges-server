@@ -27,6 +27,7 @@ interface ITransaction {
   usd_value?: number;
   is_usd_volume?: boolean;
   txs_counted_as?: number;
+  origin_chain?: string;
 }
 
 interface IAggregatedData {
@@ -127,14 +128,15 @@ const queryAggregatedDailyTimestampRange = async (
     bridgeNetworkNameEqual = bridgeNetworkName ? sql`WHERE bridge_name = ${bridgeNetworkName}` : sql``;
     chainEqual = chain ? sql`WHERE chain = ${chain}` : sql``;
   }
+
   return await sql<IAggregatedData[]>`
   SELECT 
     bridge_id, 
     date_trunc('day', ts) AS ts, 
-    CAST(SUM(total_deposited_usd) AS INTEGER) AS total_deposited_usd, 
-    CAST(SUM(total_withdrawn_usd) AS INTEGER) AS total_withdrawn_usd, 
-    CAST(SUM(total_deposit_txs) AS INTEGER) AS total_deposit_txs, 
-    CAST(SUM(total_withdrawal_txs) AS INTEGER) AS total_withdrawal_txs 
+    CAST(SUM(total_deposited_usd) AS BIGINT) AS total_deposited_usd, 
+    CAST(SUM(total_withdrawn_usd) AS BIGINT) AS total_withdrawn_usd, 
+    CAST(SUM(total_deposit_txs) AS INT) AS total_deposit_txs, 
+    CAST(SUM(total_withdrawal_txs) AS INT) AS total_withdrawal_txs 
   FROM 
     bridges.hourly_aggregated
   WHERE
@@ -325,6 +327,36 @@ const getLargeTransaction = async (txPK: number, timestamp: number) => {
   )[0];
 };
 
+type VolumeType = "deposit" | "withdrawal" | "both";
+
+const getLast24HVolume = async (bridgeName: string, volumeType: VolumeType = "both"): Promise<number> => {
+  const twentyFourHoursAgo = Math.floor(Date.now() / 1000) - 25 * 60 * 60;
+
+  let volumeColumn = sql``;
+  switch (volumeType) {
+    case "deposit":
+      volumeColumn = sql`total_deposited_usd`;
+      break;
+    case "withdrawal":
+      volumeColumn = sql`total_withdrawn_usd`;
+      break;
+    case "both":
+    default:
+      volumeColumn = sql`(total_deposited_usd + total_withdrawn_usd)`;
+      break;
+  }
+
+  const result = await sql<{ total_volume: string }[]>`
+    SELECT COALESCE(SUM(${volumeColumn}), 0) as total_volume
+    FROM bridges.hourly_aggregated ha
+    JOIN bridges.config c ON ha.bridge_id = c.id
+    WHERE c.bridge_name = ${bridgeName}
+      AND ha.ts >= to_timestamp(${twentyFourHoursAgo})
+  `;
+
+  return parseFloat((+result[0].total_volume / 2).toString());
+};
+
 export {
   getBridgeID,
   getConfigsWithDestChain,
@@ -337,4 +369,5 @@ export {
   queryAggregatedDailyDataAtTimestamp,
   queryAggregatedDailyTimestampRange,
   queryAggregatedHourlyTimestampRange,
+  getLast24HVolume,
 };

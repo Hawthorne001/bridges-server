@@ -8,6 +8,7 @@ export const normalizedChainReplacements = {
   "arbitrum%20nova": "arbitrum_nova",
   ethereumpow: "ethpow",
   "milkomeda%20c1": "milkomeda",
+  shimmerevm: "shimmer_evm",
 } as {
   [chain: string]: string;
 };
@@ -229,7 +230,7 @@ export const chainCoingeckoIds = {
     categories: ["EVM"],
     chainId: 1666600000,
   },
-  RSK: {
+  Rootstock: {
     geckoId: "rootstock",
     symbol: "RBTC",
     cmcId: "3626",
@@ -901,6 +902,73 @@ export const chainCoingeckoIds = {
     cmcId: null,
     categories: ["Cosmos"],
   },
+  ShimmerEVM: {
+    geckoId: "shimmer",
+    symbol: "SMR",
+    cmcId: null,
+    categories: ["EVM"],
+  },
+  Mode: {
+    geckoId: null,
+    symbol: null,
+    cmcId: null,
+    categories: ["EVM", "Rollup"],
+    chainId: 34443,
+  },
+  Merlin: {
+    geckoId: null,
+    symbol: null,
+    cmcId: null,
+    categories: ["EVM"],
+  },
+  Zkfair: {
+    geckoId: null,
+    symbol: null,
+    cmcId: null,
+    categories: ["EVM"],
+  },
+  BSquared: {
+    geckoId: null,
+    symbol: null,
+    cmcId: null,
+    categories: ["EVM"],
+  },
+  "Bitlayer": {
+    geckoId: null,
+    symbol: null,
+    cmcId: null,
+    categories: ["EVM"],
+  },
+  "zkLink Nova": {
+    geckoId: "zklink",
+    symbol: "ZKL",
+    cmcId: null,
+    categories: ["EVM"],
+  },
+  "BounceBit": {
+    geckoId: "BB",
+    symbol: "bouncebit",
+    cmcId: "30746",
+    categories: ["EVM"],
+  },
+  "X Layer": {
+    geckoId: "x-layer",
+    symbol: null,
+    cmcId: null,
+    categories: ["EVM"],
+  },
+  "opBNB": {
+    geckoId: null,
+    symbol: null,
+    cmcId: null,
+    categories: ["EVM", "Rollup"],
+  },
+  "Taiko": {
+    geckoId: null,
+    symbol: null,
+    cmcId: null,
+    categories: ["EVM","Rollup"],
+  },
 } as {
   [chain: string]: {
     geckoId: string | null;
@@ -1126,6 +1194,26 @@ export function getChainDisplayName(normalizedChain: string, useNewChainNames: b
       return "Sui";
     case "solana":
       return "Solana";
+    case "merlin":
+      return "Merlin";
+    case "zkfair":
+      return "Zkfair";
+    case "bsquared":
+      return "BSquared";
+     case "btr":
+      return "Bitlayer"
+    case "zklink":
+      return "zkLink Nova"
+    case "bouncebit":
+      return "BounceBit"
+    case "europa":
+      return "SKALE Europa"
+    case "xlayer":
+      return "X Layer"
+    case "opbnb":
+      return "opBNB"
+    case "taiko":
+      return "Taiko"
     default:
       return normalizedChain.slice(0, 1).toUpperCase() + normalizedChain.slice(1); // Capitalize first letter
   }
@@ -1138,3 +1226,10 @@ export function getDisplayChain(chains: string[]) {
     return chains[0];
   }
 }
+
+export const normlizeTokenSymbol = (symbol: string) => {
+  if (symbol === "WRBTC") {
+    return "RBTC";
+  }
+  return symbol;
+};
